@@ -3,10 +3,6 @@ name: Infrastructure
 on:
   push:
     branches: [main]
-    paths:
-      - "infrastructure/**"
-      - "argocd/**"
-      - ".github/workflows/infrastructure.yml"
   workflow_dispatch:
 
 concurrency:

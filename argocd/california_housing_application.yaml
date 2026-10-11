@@ -9,7 +9,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/pkai21/kai-ops.git
+    repoURL: https://github.com/pkai21/california-housing-devops.git
     targetRevision: main
     path: k8s
 
