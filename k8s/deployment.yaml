@@ -28,7 +28,7 @@ spec:
       containers:
         - name: california-housing-api
 
-          image: ghcr.io/pkai21/california-housing-dev:laster
+          image: ghcr.io/pkai21/california-housing-dev:latest
 
           imagePullPolicy: Always
 
