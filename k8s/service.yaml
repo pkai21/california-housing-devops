@@ -1,0 +1,19 @@
+apiVersion: v1
+
+kind: Service
+
+metadata:
+  name: california-housing-api
+  namespace: california-housing
+
+spec:
+  type: NodePort
+
+  selector:
+    app: california-housing-api
+
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 30080

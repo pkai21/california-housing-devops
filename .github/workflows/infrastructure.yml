@@ -1,0 +1,66 @@
+name: Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - "argocd/**"
+      - ".github/workflows/infrastructure.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    # Chạy trên runner đặt tại khai-server
+    runs-on: [self-hosted, khai-server]
+
+    env:
+      TF_TOKEN_app_terraform_io: ${{ secrets.HCP_TERRAFORM_TOKEN }}
+      TF_VAR_kubernetes_host: ${{ secrets.KUBERNETES_HOST }}
+      TF_VAR_kubernetes_ca_certificate: ${{ secrets.KUBERNETES_CA_CERTIFICATE }}
+      TF_VAR_kubernetes_token: ${{ secrets.KUBERNETES_TOKEN }}
+      TF_VAR_grafana_admin_password: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - run: terraform fmt -check -recursive
+      - run: terraform init -input=false
+      - run: terraform validate
+
+      - name: Import existing shared infrastructure
+        shell: bash
+        run: |
+          terraform state show kubernetes_namespace.monitoring >/dev/null 2>&1 || \
+            terraform import kubernetes_namespace.monitoring monitoring
+
+          terraform state show kubernetes_namespace.argocd >/dev/null 2>&1 || \
+            terraform import kubernetes_namespace.argocd argocd
+
+          terraform state show helm_release.kube_prometheus_stack >/dev/null 2>&1 || \
+            terraform import helm_release.kube_prometheus_stack monitoring/monitoring
+
+          terraform state show helm_release.argocd >/dev/null 2>&1 || \
+            terraform import helm_release.argocd argocd/argocd
+
+          terraform state show helm_release.argocd_apps >/dev/null 2>&1 || \
+            terraform import helm_release.argocd_apps argocd/argocd-apps
+        
+      - name: Terraform Plan
+        run: terraform plan -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
