@@ -1,0 +1,52 @@
+# Cho KEDA đọc mật khẩu Redis từ Secret có sẵn (không ghi mật khẩu vào Git)
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: redis-auth-keda
+  namespace: california-housing
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: redis-auth
+      key: password
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: queue-consumer
+  namespace: california-housing
+spec:
+  scaleTargetRef:
+    name: queue-consumer
+
+  # Tối thiểu 1 để luôn có consumer sẵn sàng. Đặt 0 được (tiết kiệm tài nguyên)
+  # nhưng job đầu tiên sẽ phải chờ pod khởi động
+  minReplicaCount: 1
+
+  # Trần 5 consumer x 4 luồng = tối đa 20 request đồng thời đổ vào API cũ (chỉ 2 pod).
+  # Đừng nâng trần tùy tiện: scale consumer mà API không chịu nổi thì chỉ dời điểm nghẽn
+  maxReplicaCount: 5
+
+  pollingInterval: 5   # KEDA kiểm tra lag mỗi 5 giây
+
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          # Chờ 60 giây ổn định mới giảm pod (mặc định 300s): đủ nhanh để quan sát khi học,
+          # đủ chậm để không giật khi tải dao động
+          stabilizationWindowSeconds: 60
+
+  triggers:
+    - type: redis-streams
+      authenticationRef:
+        name: redis-auth-keda
+      metadata:
+        # Dùng tên đầy đủ (FQDN): KEDA chạy ở namespace khác nên tên ngắn "redis" không phân giải được
+        address: redis.california-housing.svc.cluster.local:6379
+        stream: jobs
+        consumerGroup: workers
+        # Cứ 10 job đang chờ thì cần thêm 1 consumer. lag=200 → 20 consumer, bị kẹp ở trần 5
+        lagCount: "10"
+        enableTLS: "false"

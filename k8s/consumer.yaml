@@ -4,9 +4,6 @@ metadata:
   name: queue-consumer
   namespace: california-housing
 spec:
-  # Số consumer: Giai đoạn 4 sẽ giao cho KEDA tự điều chỉnh
-  replicas: 1
-
   selector:
     matchLabels:
       app: queue-consumer
