@@ -43,10 +43,9 @@ spec:
       authenticationRef:
         name: redis-auth-keda
       metadata:
-        # Dùng tên đầy đủ (FQDN): KEDA chạy ở namespace khác nên tên ngắn "redis" không phân giải được
         address: redis.california-housing.svc.cluster.local:6379
         stream: jobs
-        consumerGroup: workers
-        # Cứ 10 job đang chờ thì cần thêm 1 consumer. lag=200 → 20 consumer, bị kẹp ở trần 5
-        lagCount: "10"
+        # Đo theo độ dài stream thay vì lag: lag có thể trống khi stream có entry đã xóa.
+        # Cứ 10 job chưa xong thì cần thêm 1 consumer
+        streamLength: "10"
         enableTLS: "false"
