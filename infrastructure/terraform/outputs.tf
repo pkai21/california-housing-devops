@@ -17,3 +17,8 @@ output "argocd_helm_release" {
   description = "Argo CD Helm release"
   value       = helm_release.argocd.name
 }
+
+output "keda_helm_release" {
+  description = "KEDA Helm release"
+  value       = helm_release.keda.name
+}
