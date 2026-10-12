@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-consumer
+  namespace: california-housing
+spec:
+  # Số consumer: Giai đoạn 4 sẽ giao cho KEDA tự điều chỉnh
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: queue-consumer
+
+  template:
+    metadata:
+      labels:
+        app: queue-consumer
+
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      securityContext:
+        runAsNonRoot: true
+
+      # Cho consumer thời gian xử lý nốt lô job đang chạy khi pod bị tắt (code cần tối đa ~15 giây)
+      terminationGracePeriodSeconds: 30
+
+      containers:
+        - name: consumer
+          image: ghcr.io/pkai21/california-housing-queue:latest
+          imagePullPolicy: Always
+
+          # Cùng image với gateway, chỉ khác lệnh khởi động
+          command: ["python", "-m", "app.consumer"]
+
+          env:
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: password
+            # Tên Service của API cũ, cùng namespace nên gọi thẳng tên ngắn
+            - name: API_URL
+              value: http://california-housing-api:8000
+            # Mỗi consumer gọi API cũ tối đa 4 request đồng thời: đây là "van điều tiết tải"
+            - name: CONSUMER_CONCURRENCY
+              value: "4"
+
+          # Consumer không có cổng HTTP nên kiểm tra "nhịp tim": file /tmp/consumer_alive
+          # được vòng lặp chính cập nhật liên tục. Quá 60 giây không đổi nghĩa là vòng lặp bị treo
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os,sys,time,tempfile; p=os.path.join(tempfile.gettempdir(),'consumer_alive'); sys.exit(0 if time.time()-os.path.getmtime(p)<60 else 1)"
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi

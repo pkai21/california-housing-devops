@@ -1,0 +1,79 @@
+name: Build Queue App
+
+on:
+  push:
+    branches: [main]
+    # Chỉ chạy khi mã nguồn queue-app đổi: commit đổi tag ở k8s/ không kích hoạt lại
+    paths:
+      - "queue-app/**"
+      - ".github/workflows/queue-app.yml"
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/pkai21/california-housing-queue
+
+# Khác group với cd.yml. Nếu dùng chung, run đang chờ của cd.yml có thể bị hủy oan
+concurrency:
+  group: queue-app-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # để commit tag mới vào k8s/
+      packages: write   # để đẩy image lên GHCR
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: queue-app
+          push: true
+          # sha để Argo CD biết chính xác phiên bản nào; latest chỉ để khởi tạo lần đầu
+          tags: |
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+
+      - name: Update image tag in Git
+        run: |
+          set -euo pipefail
+
+          TAG="sha-${GITHUB_SHA}"
+          FILES="k8s/gateway.yaml k8s/consumer.yaml"
+
+          # Lần chạy đầu manifest chưa tồn tại: bỏ qua thay vì làm hỏng workflow
+          for f in ${FILES}; do
+            test -f "${f}" || { echo "Chưa có ${f}, bỏ qua cập nhật tag"; exit 0; }
+          done
+
+          # Cả gateway và consumer dùng chung 1 image nên phải đổi tag đồng thời,
+          # nếu không hai bên chạy hai phiên bản code khác nhau
+          sed -i -E "s|image: ${IMAGE}:.*|image: ${IMAGE}:${TAG}|" ${FILES}
+
+          grep -q "${TAG}" k8s/gateway.yaml
+          grep -q "${TAG}" k8s/consumer.yaml
+
+          if git diff --quiet -- ${FILES}; then
+            echo "Tag không đổi"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add ${FILES}
+          git commit -m "cd: deploy queue-app ${TAG} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
