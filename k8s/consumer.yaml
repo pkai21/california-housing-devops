@@ -17,6 +17,7 @@ spec:
         app: queue-consumer
 
     spec:
+      enableServiceLinks: false
       imagePullSecrets:
         - name: ghcr-pull-secret
 

@@ -37,6 +37,7 @@ spec:
         app: queue-gateway
 
     spec:
+      enableServiceLinks: false
       imagePullSecrets:
         - name: ghcr-pull-secret
 
