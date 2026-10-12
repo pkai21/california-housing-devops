@@ -28,7 +28,7 @@ spec:
 
       containers:
         - name: consumer
-          image: ghcr.io/pkai21/california-housing-queue:latest
+          image: ghcr.io/pkai21/california-housing-queue:sha-2cfd80f11385f6aa80ea11c90ec800c33b681797
           imagePullPolicy: Always
 
           # Cùng image với gateway, chỉ khác lệnh khởi động
