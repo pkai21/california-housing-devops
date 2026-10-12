@@ -40,20 +40,29 @@ jobs:
       - name: Import existing shared infrastructure
         shell: bash
         run: |
-          terraform state show kubernetes_namespace.monitoring >/dev/null 2>&1 || \
-            terraform import kubernetes_namespace.monitoring monitoring
+          # Import khi: chưa có trong state VÀ đã tồn tại trong cluster
+          # Cluster trống (lần dựng đầu) thì bỏ qua, Terraform sẽ tự tạo mới
+          import_ns() {
+            terraform state show "kubernetes_namespace.$1" >/dev/null 2>&1 && return 0
+            kubectl get namespace "$2" >/dev/null 2>&1 \
+              && terraform import "kubernetes_namespace.$1" "$2" \
+              || echo "Bỏ qua import namespace $2 (chưa tồn tại)"
+          }
 
-          terraform state show kubernetes_namespace.argocd >/dev/null 2>&1 || \
-            terraform import kubernetes_namespace.argocd argocd
+          # Helm lưu mỗi release thành Secret có label owner=helm
+          import_helm() {
+            terraform state show "helm_release.$1" >/dev/null 2>&1 && return 0
+            if [ -n "$(kubectl get secret -n "$2" -l "owner=helm,name=$3" -o name 2>/dev/null)" ]; then
+              terraform import "helm_release.$1" "$2/$3"
+            else
+              echo "Bỏ qua import release $3 (chưa tồn tại)"
+            fi
+          }
 
-          terraform state show helm_release.kube_prometheus_stack >/dev/null 2>&1 || \
-            terraform import helm_release.kube_prometheus_stack monitoring/monitoring
-
-          terraform state show helm_release.argocd >/dev/null 2>&1 || \
-            terraform import helm_release.argocd argocd/argocd
-
-          terraform state show helm_release.argocd_apps >/dev/null 2>&1 || \
-            terraform import helm_release.argocd_apps argocd/argocd-apps
+          import_ns monitoring monitoring
+          import_ns argocd argocd
+          import_helm kube_prometheus_stack monitoring monitoring
+          import_helm argocd argocd argocd
         
       - name: Terraform Plan
         run: terraform plan -input=false

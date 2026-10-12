@@ -52,7 +52,7 @@ locals {
 # Dùng chart argocd-apps thay vì kubernetes_manifest, vì kubernetes_manifest
 # cần CRD tồn tại ngay lúc plan, mà CRD chỉ có sau khi Argo CD được cài.
 resource "helm_release" "argocd_apps" {
-  name       = "argocd-apps"
+  name       = "argocd-apps-california-housing"
   namespace  = kubernetes_namespace.argocd.metadata[0].name
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argocd-apps"
